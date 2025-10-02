@@ -1,12 +1,12 @@
 # workers-ai
 
-🎯 Fitur Utama:
-/chat - Chat biasa dengan AI, bisa atur temperature & max_tokens
-/code - Generate kode dalam berbagai bahasa programming
-/analyze - Analisis teks (sentiment, code review, SEO, dll)
+🎯 Fitur Utama:\n
+/chat - Chat biasa dengan AI, bisa atur temperature & max_tokens\n
+/code - Generate kode dalam berbagai bahasa programming\n
+/analyze - Analisis teks (sentiment, code review, SEO, dll)\n
 /summarize - Ringkas teks panjang (short/medium/long)
-/stream - Streaming response real-time
-📝 Cara Pakai:
+/stream - Streaming response real-time\n
+📝 Cara Pakai:\n
 // Chat biasa
 ```
 fetch('https://your-worker.workers.dev/chat', {
