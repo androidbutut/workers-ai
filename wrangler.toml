@@ -4,6 +4,10 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Account ID (ganti dengan account ID lu)
+# Bisa dicek di dashboard Cloudflare
+account_id = "9ba8f702cd7f057341cb0e5f75e21905"
+
 # Workers AI Binding
 [ai]
 binding = "AI"
