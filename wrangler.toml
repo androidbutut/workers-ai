@@ -1,0 +1,51 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "smart-ai-backend"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers AI Binding
+[ai]
+binding = "AI"
+
+# Observability - Logs & Analytics
+[observability]
+enabled = true
+
+# Limits & Performance
+[limits]
+cpu_ms = 50000
+
+# Environment Variables (optional)
+[vars]
+ENVIRONMENT = "production"
+MAX_TOKENS = "4096"
+DEFAULT_TEMPERATURE = "0.7"
+
+# Development environment
+[env.dev]
+name = "smart-ai-backend-dev"
+vars = { ENVIRONMENT = "development" }
+
+# Staging environment
+[env.staging]
+name = "smart-ai-backend-staging"
+vars = { ENVIRONMENT = "staging" }
+
+# Production environment
+[env.production]
+name = "smart-ai-backend-prod"
+vars = { ENVIRONMENT = "production" }
+
+# Routes (opsional - untuk custom domain)
+# [[routes]]
+# pattern = "api.yourdomain.com/*"
+# zone_name = "yourdomain.com"
+
+# Build configuration
+[build]
+command = ""
+
+# Triggers (opsional - untuk scheduled events)
+# [triggers]
+# crons = ["0 0 * * *"]  # Run setiap hari jam 12 malam
