@@ -16,10 +16,6 @@ binding = "AI"
 [observability]
 enabled = true
 
-# Limits & Performance
-[limits]
-cpu_ms = 50000
-
 # Environment Variables (optional)
 [vars]
 ENVIRONMENT = "production"
