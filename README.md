@@ -8,7 +8,9 @@
 * /stream - Streaming response real-time.
   
 📝 Cara Pakai:
+
 // Chat biasa
+
 ```
 fetch('https://your-worker.workers.dev/chat', {
   method: 'POST',
@@ -33,6 +35,7 @@ fetch('https://your-worker.workers.dev/code', {
 ```
 
 ⚙️ Setup di Cloudflare:
+
 Buat Workers baru di dashboard Cloudflare
 Copy paste kode di atas
 Tambahkan AI binding di wrangler.toml:
@@ -44,4 +47,5 @@ main = "src/index.js"
 [ai]
 binding = "AI"
 ```
+
 Udah support CORS juga, jadi bisa dipanggil dari frontend manapun! 🔥
