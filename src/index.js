@@ -297,7 +297,7 @@ async function handleScrape(request, env, corsHeaders) {
   }
 }
 
-// Handler untuk redesign website (FIXED VERSION)
+// Handler untuk redesign website (OPTIMIZED VERSION - No Timeout)
 async function handleRedesign(request, env, corsHeaders) {
   const { 
     url, 
@@ -320,7 +320,8 @@ async function handleRedesign(request, env, corsHeaders) {
       headers: {
         'Accept': 'application/json',
         'X-Return-Format': 'markdown'
-      }
+      },
+      signal: AbortSignal.timeout(10000) // 10s timeout untuk scraping
     });
 
     if (!scrapeResponse.ok) {
@@ -329,77 +330,51 @@ async function handleRedesign(request, env, corsHeaders) {
 
     const websiteContent = await scrapeResponse.text();
 
-    // Style guidelines
+    // Style guidelines (shortened)
     const styleGuides = {
-      modern: 'desain modern dengan gradient, shadow, rounded corners, dan animasi smooth',
-      minimalist: 'desain minimalis clean dengan whitespace banyak, typography fokus, warna netral',
-      glassmorphism: 'desain glassmorphism dengan backdrop-blur, transparency, dan efek glass',
-      neumorphism: 'desain neumorphic dengan soft shadows dan 3D effect subtle',
-      cyberpunk: 'desain cyberpunk dengan neon colors, glitch effects, dan futuristic vibes',
-      corporate: 'desain corporate professional dengan warna solid dan layout terstruktur'
+      modern: 'gradient, shadow, rounded, smooth animations',
+      minimalist: 'clean whitespace, typography focus, neutral colors',
+      glassmorphism: 'backdrop-blur, transparency, glass effect',
+      neumorphism: 'soft shadows, subtle 3D effect',
+      cyberpunk: 'neon colors, glitch effects, futuristic',
+      corporate: 'professional, solid colors, structured'
     };
 
-    // Framework templates
-    const frameworkGuides = {
-      html: 'Pure HTML dengan Tailwind CSS inline classes',
-      react: 'React component dengan Tailwind CSS',
-      vue: 'Vue 3 component dengan Tailwind CSS',
-      svelte: 'Svelte component dengan Tailwind CSS'
-    };
-
-    // PERBAIKAN 1: Batasi konten website untuk menghindari token overflow
-    const contentLimit = 3000; // Kurangi dari 4000 ke 3000
+    // OPTIMASI 1: Drastis kurangi konten untuk speed
+    const contentLimit = 1500; // Dari 3000 ke 1500
     const truncatedContent = websiteContent.slice(0, contentLimit);
 
-    // PERBAIKAN 2: Simplified prompt - langsung minta code tanpa JSON wrapping
-    const systemPrompt = `Kamu adalah expert UI/UX designer dan frontend developer.
+    // OPTIMASI 2: Simplified & shorter prompt
+    const systemPrompt = `Expert UI/UX designer. Redesign website dengan style ${style}.
 
-TUGAS:
-Redesign website berikut dengan style ${style} menggunakan ${framework}.
+Style: ${styleGuides[style] || styleGuides.modern}
 
-STYLE GUIDE:
-${styleGuides[style] || styleGuides.modern}
+Rules:
+- Pure Tailwind CSS (no custom CSS)
+- Responsive design
+- Dark mode ready
+- ${includeJS ? 'Add JavaScript' : 'No JavaScript'}
 
-FRAMEWORK:
-${frameworkGuides[framework] || frameworkGuides.html}
-
-REQUIREMENTS:
-1. Gunakan HANYA Tailwind CSS utility classes (no custom CSS)
-2. Buat design yang responsive (mobile-first)
-3. Implementasi dark mode support
-4. Gunakan color palette yang cohesive
-5. Tambahkan micro-interactions dan hover effects
-6. Optimasi untuk performance dan accessibility
-${includeJS ? '7. Tambahkan JavaScript untuk interactivity\n' : '7. No JavaScript, pure CSS animations\n'}
-8. Buat code yang production-ready dan clean
-
-KONTEN WEBSITE ORIGINAL:
+Content:
 ${truncatedContent}
 
-OUTPUT FORMAT:
-Berikan HANYA full working ${framework} code dengan Tailwind CSS.
-Mulai langsung dengan kode, tidak perlu penjelasan atau teks tambahan.
-Gunakan format markdown code block: \`\`\`html atau \`\`\`jsx sesuai framework.`;
+Output: ${framework} code ONLY. Start with code immediately.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      { 
-        role: 'user', 
-        content: `Redesign website ini dengan style ${style}. Buat semenarik dan secanggih mungkin!` 
-      }
+      { role: 'user', content: `Create ${style} design now!` }
     ];
 
-    // PERBAIKAN 3: Tambahkan timeout dan error handling yang lebih baik
-    const aiResponse = await Promise.race([
-      env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', {
-        messages,
-        temperature: 0.7, // Turunkan sedikit untuk konsistensi
-        max_tokens: 4096
-      }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('AI request timeout')), 30000)
-      )
-    ]);
+    // OPTIMASI 3: Gunakan model yang lebih cepat untuk redesign
+    // Llama lebih cepat dari DeepSeek untuk task ini
+    const MODEL = '@cf/meta/llama-3.1-8b-instruct';
+
+    // OPTIMASI 4: Kurangi max_tokens untuk response lebih cepat
+    const aiResponse = await env.AI.run(MODEL, {
+      messages,
+      temperature: 0.6, // Lower untuk speed
+      max_tokens: 2048  // Turun dari 4096
+    });
 
     let rawOutput = aiResponse.response;
 
@@ -407,47 +382,37 @@ Gunakan format markdown code block: \`\`\`html atau \`\`\`jsx sesuai framework.`
       throw new Error('AI tidak menghasilkan output');
     }
 
-    // PERBAIKAN 4: Ekstraksi kode yang lebih robust
+    // Ekstraksi kode
     let generatedCode = '';
-    let explanation = `Website diredesign dengan style ${style} menggunakan Tailwind CSS.`;
+    let explanation = `${style} design dengan Tailwind CSS`;
 
-    // Coba ekstrak code block dari markdown
-    const codeBlockRegex = /```(?:html|jsx|vue|svelte)?\s*\n([\s\S]*?)\n```/;
+    // Extract code block
+    const codeBlockRegex = /```(?:html|jsx|vue|svelte|xml)?\s*\n([\s\S]*?)```/;
     const match = rawOutput.match(codeBlockRegex);
 
     if (match && match[1]) {
-      // Jika ada code block, ambil isinya
       generatedCode = match[1].trim();
-      
-      // Ambil teks sebelum atau setelah code block sebagai penjelasan (optional)
-      const beforeCode = rawOutput.substring(0, match.index).trim();
-      const afterCode = rawOutput.substring(match.index + match[0].length).trim();
-      
-      if (beforeCode.length > 10 && beforeCode.length < 500) {
-        explanation = beforeCode;
-      } else if (afterCode.length > 10 && afterCode.length < 500) {
-        explanation = afterCode;
-      }
     } else {
-      // Fallback: Jika tidak ada code block, gunakan seluruh output sebagai code
-      generatedCode = rawOutput.trim();
+      // Fallback: cari HTML content
+      const htmlMatch = rawOutput.match(/<!DOCTYPE html>[\s\S]*<\/html>/i);
+      if (htmlMatch) {
+        generatedCode = htmlMatch[0].trim();
+      } else {
+        // Last resort: gunakan semua output
+        generatedCode = rawOutput.trim();
+      }
     }
 
-    // PERBAIKAN 5: Validasi dasar untuk memastikan code valid
-    if (generatedCode.length < 100) {
-      throw new Error('Generated code terlalu pendek, kemungkinan error dari AI');
-    }
-
-    // Cek apakah code mengandung HTML tags minimal
-    if (framework === 'html' && !generatedCode.includes('<')) {
-      throw new Error('Generated code tidak mengandung HTML tags yang valid');
-    }
-
-    // PERBAIKAN 6: Clean up code dari artifacts
+    // Clean up
     generatedCode = generatedCode
-      .replace(/^```[\w\s]*\n?/g, '') // Hapus opening code fence yang tersisa
-      .replace(/\n?```$/g, '')        // Hapus closing code fence yang tersisa
+      .replace(/^```[\w\s]*\n?/g, '')
+      .replace(/\n?```$/g, '')
       .trim();
+
+    // Basic validation
+    if (generatedCode.length < 50) {
+      throw new Error('Generated code terlalu pendek');
+    }
 
     return Response.json({
       success: true,
@@ -458,28 +423,128 @@ Gunakan format markdown code block: \`\`\`html atau \`\`\`jsx sesuai framework.`
       explanation: explanation,
       metadata: {
         code_length: generatedCode.length,
-        scraped_content_length: websiteContent.length,
-        content_used_length: truncatedContent.length,
+        model_used: MODEL,
         generated_at: new Date().toISOString()
       }
     }, { headers: corsHeaders });
 
   } catch (error) {
-    // PERBAIKAN 7: Error handling yang lebih informatif
     console.error('Redesign error:', error);
+    
+    // Fallback: Berikan template sederhana jika AI gagal
+    if (error.message.includes('timeout') || error.message.includes('AI')) {
+      const fallbackCode = generateFallbackTemplate(style, url);
+      
+      return Response.json({
+        success: true,
+        original_url: url,
+        style,
+        framework,
+        code: fallbackCode,
+        explanation: `Template ${style} (AI timeout, menggunakan fallback template)`,
+        is_fallback: true,
+        metadata: {
+          code_length: fallbackCode.length,
+          generated_at: new Date().toISOString()
+        }
+      }, { headers: corsHeaders });
+    }
     
     return Response.json(
       { 
-        error: `Gagal redesign website: ${error.message}`,
+        error: `Gagal redesign: ${error.message}`,
         details: {
           url,
           style,
           framework,
-          error_type: error.name,
           timestamp: new Date().toISOString()
         }
       },
       { status: 500, headers: corsHeaders }
     );
   }
+}
+
+// BONUS: Fallback template generator jika AI timeout
+function generateFallbackTemplate(style, url) {
+  const styles = {
+    modern: {
+      gradient: 'from-purple-600 via-pink-600 to-red-600',
+      card: 'backdrop-blur-lg bg-white/10 border border-white/20',
+      text: 'text-white'
+    },
+    minimalist: {
+      gradient: 'from-gray-50 to-gray-100',
+      card: 'bg-white border border-gray-200',
+      text: 'text-gray-900'
+    },
+    glassmorphism: {
+      gradient: 'from-blue-400 via-purple-400 to-pink-400',
+      card: 'backdrop-blur-md bg-white/20 border border-white/30 shadow-xl',
+      text: 'text-white'
+    },
+    cyberpunk: {
+      gradient: 'from-cyan-500 via-purple-500 to-pink-500',
+      card: 'bg-black/80 border-2 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]',
+      text: 'text-cyan-400'
+    },
+    corporate: {
+      gradient: 'from-blue-600 to-blue-800',
+      card: 'bg-white border border-gray-300 shadow-md',
+      text: 'text-gray-900'
+    },
+    neumorphism: {
+      gradient: 'from-gray-200 to-gray-300',
+      card: 'bg-gray-200 shadow-[8px_8px_16px_#bebebe,-8px_-8px_16px_#ffffff]',
+      text: 'text-gray-800'
+    }
+  };
+
+  const theme = styles[style] || styles.modern;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${style.charAt(0).toUpperCase() + style.slice(1)} Redesign</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br ${theme.gradient}">
+    <div class="container mx-auto px-4 py-16">
+        <!-- Header -->
+        <header class="${theme.card} rounded-2xl p-8 mb-8">
+            <h1 class="${theme.text} text-4xl md:text-6xl font-bold mb-4">Welcome</h1>
+            <p class="${theme.text} text-lg opacity-90">Beautiful ${style} design</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="grid md:grid-cols-2 gap-8">
+            <div class="${theme.card} rounded-2xl p-8">
+                <h2 class="${theme.text} text-2xl font-bold mb-4">About</h2>
+                <p class="${theme.text} opacity-80">
+                    This is a ${style} redesign template. Customize this content based on your needs.
+                </p>
+            </div>
+
+            <div class="${theme.card} rounded-2xl p-8">
+                <h2 class="${theme.text} text-2xl font-bold mb-4">Features</h2>
+                <ul class="${theme.text} opacity-80 space-y-2">
+                    <li>✨ Modern Design</li>
+                    <li>📱 Fully Responsive</li>
+                    <li>🎨 Tailwind CSS</li>
+                    <li>⚡ Fast Loading</li>
+                </ul>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="${theme.card} rounded-2xl p-6 mt-8 text-center">
+            <p class="${theme.text} opacity-70 text-sm">
+                Original: <a href="${url}" class="underline hover:opacity-100">${url}</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>`;
 }
