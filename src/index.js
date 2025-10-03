@@ -297,8 +297,7 @@ async function handleScrape(request, env, corsHeaders) {
   }
 }
 
-// Handler untuk redesign website
-// Handler untuk redesign website
+// Handler untuk redesign website (FIXED VERSION)
 async function handleRedesign(request, env, corsHeaders) {
   const { 
     url, 
@@ -348,6 +347,11 @@ async function handleRedesign(request, env, corsHeaders) {
       svelte: 'Svelte component dengan Tailwind CSS'
     };
 
+    // PERBAIKAN 1: Batasi konten website untuk menghindari token overflow
+    const contentLimit = 3000; // Kurangi dari 4000 ke 3000
+    const truncatedContent = websiteContent.slice(0, contentLimit);
+
+    // PERBAIKAN 2: Simplified prompt - langsung minta code tanpa JSON wrapping
     const systemPrompt = `Kamu adalah expert UI/UX designer dan frontend developer.
 
 TUGAS:
@@ -370,21 +374,12 @@ ${includeJS ? '7. Tambahkan JavaScript untuk interactivity\n' : '7. No JavaScrip
 8. Buat code yang production-ready dan clean
 
 KONTEN WEBSITE ORIGINAL:
-${websiteContent.slice(0, 4000)}
+${truncatedContent}
 
 OUTPUT FORMAT:
-HANYA berikan respons dalam format JSON valid. JANGAN ada teks atau penjelasan di luar objek JSON ini.
-JSON harus memiliki dua kunci: "code" dan "explanation".
-
-- Kunci "code": Berisi full working code (HTML/Component) yang diminta. Untuk kejelasan, bungkus konten ini dalam blok kode Markdown (misalnya, \`\`\`html...\`\`\`) di dalam string JSON.
-- Kunci "explanation": Berisi penjelasan singkat (maks. 5 kalimat) tentang pilihan desain dan framework yang digunakan.
-
-Contoh Output:
-{
-  "code": "\`\`\`html\\n\\n\`\`\`",
-  "explanation": "Desain ini menggunakan layout grid modern, glassmorphism, dan palet warna netral untuk kesan elegan."
-}
-`;
+Berikan HANYA full working ${framework} code dengan Tailwind CSS.
+Mulai langsung dengan kode, tidak perlu penjelasan atau teks tambahan.
+Gunakan format markdown code block: \`\`\`html atau \`\`\`jsx sesuai framework.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -394,61 +389,96 @@ Contoh Output:
       }
     ];
 
-    const aiResponse = await env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', {
-      messages,
-      temperature: 0.8, // Higher creativity untuk design
-      max_tokens: 4096
-    });
+    // PERBAIKAN 3: Tambahkan timeout dan error handling yang lebih baik
+    const aiResponse = await Promise.race([
+      env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', {
+        messages,
+        temperature: 0.7, // Turunkan sedikit untuk konsistensi
+        max_tokens: 4096
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('AI request timeout')), 30000)
+      )
+    ]);
 
     let rawOutput = aiResponse.response;
-    let parsedJson;
 
-    try {
-        // Hapus penanda Markdown/kode di awal dan akhir jika model menambahkannya
-        rawOutput = rawOutput.replace(/^```json\s*|```\s*$/g, '').trim(); 
-        
-        // Parse output sebagai JSON
-        parsedJson = JSON.parse(rawOutput);
-
-    } catch (e) {
-        // Fallback jika parsing JSON gagal
-        // Kirim rawOutput ke frontend agar user bisa lihat apa yang salah
-        return Response.json(
-            { error: 'Gagal memparsing respons AI sebagai JSON. Pastikan prompt AI diikuti dengan benar.', raw_output: rawOutput.slice(0, 1000) },
-            { status: 500, headers: corsHeaders }
-        );
+    if (!rawOutput || rawOutput.trim() === '') {
+      throw new Error('AI tidak menghasilkan output');
     }
 
-    let generatedCode = parsedJson.code || '';
-    let explanation = parsedJson.explanation || 'Tidak ada penjelasan desain yang disediakan oleh AI.';
+    // PERBAIKAN 4: Ekstraksi kode yang lebih robust
+    let generatedCode = '';
+    let explanation = `Website diredesign dengan style ${style} menggunakan Tailwind CSS.`;
 
-    // Bersihkan kode dari blok Markdown (```html\n...\n```) yang ada di dalam string JSON
-    const codeRegex = /```[\w\s]*\n([\s\S]*?)\n```/;
-    const match = generatedCode.match(codeRegex);
+    // Coba ekstrak code block dari markdown
+    const codeBlockRegex = /```(?:html|jsx|vue|svelte)?\s*\n([\s\S]*?)\n```/;
+    const match = rawOutput.match(codeBlockRegex);
 
     if (match && match[1]) {
-        // Jika cocok, ambil konten di dalam blok kode (pure code)
-        generatedCode = match[1].trim();
+      // Jika ada code block, ambil isinya
+      generatedCode = match[1].trim();
+      
+      // Ambil teks sebelum atau setelah code block sebagai penjelasan (optional)
+      const beforeCode = rawOutput.substring(0, match.index).trim();
+      const afterCode = rawOutput.substring(match.index + match[0].length).trim();
+      
+      if (beforeCode.length > 10 && beforeCode.length < 500) {
+        explanation = beforeCode;
+      } else if (afterCode.length > 10 && afterCode.length < 500) {
+        explanation = afterCode;
+      }
     } else {
-        // Fallback: Jika tidak ada blok Markdown di dalam string kode, ambil seluruhnya
-        generatedCode = generatedCode.trim();
+      // Fallback: Jika tidak ada code block, gunakan seluruh output sebagai code
+      generatedCode = rawOutput.trim();
     }
 
-    // Mengembalikan response dengan Code dan Explanation yang sudah dipisahkan
+    // PERBAIKAN 5: Validasi dasar untuk memastikan code valid
+    if (generatedCode.length < 100) {
+      throw new Error('Generated code terlalu pendek, kemungkinan error dari AI');
+    }
+
+    // Cek apakah code mengandung HTML tags minimal
+    if (framework === 'html' && !generatedCode.includes('<')) {
+      throw new Error('Generated code tidak mengandung HTML tags yang valid');
+    }
+
+    // PERBAIKAN 6: Clean up code dari artifacts
+    generatedCode = generatedCode
+      .replace(/^```[\w\s]*\n?/g, '') // Hapus opening code fence yang tersisa
+      .replace(/\n?```$/g, '')        // Hapus closing code fence yang tersisa
+      .trim();
+
     return Response.json({
       success: true,
       original_url: url,
       style,
       framework,
-      code: generatedCode, // PURE CODE untuk preview
-      explanation: explanation, // Penjelasan terpisah untuk UI
-      preview_note: 'Gunakan field "code" untuk preview HTML dan "explanation" untuk catatan desain.',
-      scraped_content_length: websiteContent.length
+      code: generatedCode,
+      explanation: explanation,
+      metadata: {
+        code_length: generatedCode.length,
+        scraped_content_length: websiteContent.length,
+        content_used_length: truncatedContent.length,
+        generated_at: new Date().toISOString()
+      }
     }, { headers: corsHeaders });
 
   } catch (error) {
+    // PERBAIKAN 7: Error handling yang lebih informatif
+    console.error('Redesign error:', error);
+    
     return Response.json(
-      { error: `Gagal redesign website: ${error.message}` },
+      { 
+        error: `Gagal redesign website: ${error.message}`,
+        details: {
+          url,
+          style,
+          framework,
+          error_type: error.name,
+          timestamp: new Date().toISOString()
+        }
+      },
       { status: 500, headers: corsHeaders }
     );
   }
