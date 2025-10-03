@@ -61,7 +61,8 @@ export default {
           },
           models: {
             chat: '@cf/meta/llama-3.1-8b-instruct',
-            code: '@cf/meta/llama-3.1-8b-instruct',
+            // PENTING: Menggunakan DeepSeek Coder untuk kode
+            code: '@hf/thebloke/deepseek-coder-6.7b-instruct-awq', 
             analysis: '@cf/meta/llama-3.1-8b-instruct'
           }
         }, { headers: corsHeaders });
@@ -126,7 +127,10 @@ Ikuti best practices dan modern coding standards.`;
     { role: 'user', content: prompt }
   ];
 
-  const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+  // MODEL YANG DIUBAH: Menggunakan DeepSeek Coder untuk performa kode yang lebih baik
+  const CODE_MODEL = '@hf/thebloke/deepseek-coder-6.7b-instruct-awq';
+
+  const response = await env.AI.run(CODE_MODEL, { 
     messages,
     temperature: 0.3, // Lower temp untuk code generation lebih konsisten
     max_tokens: 3000
