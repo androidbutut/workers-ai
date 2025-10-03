@@ -119,8 +119,9 @@ async function handleCodeGeneration(request, env, corsHeaders) {
 
   const systemPrompt = `Kamu adalah expert programmer yang sangat pintar. 
 Tugas kamu adalah generate kode ${language} yang clean, efisien, dan well-documented.
-Selalu tambahkan comment untuk menjelaskan logika kompleks.
-Ikuti best practices dan modern coding standards.`;
+Selalu tambahkan comment untuk menjelaskan logika kompleks di dalam kode.
+Ikuti best practices dan modern coding standards.
+HANYA JAWAB DENGAN BLOK KODE MARKDOWN (contoh: \`\`\`${language}...\`\`\`). JANGAN ada teks atau penjelasan lain di luar blok kode!`; // <--- PENTING: Tambahkan batasan ini
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -371,6 +372,8 @@ KONTEN WEBSITE ORIGINAL:
 ${websiteContent.slice(0, 4000)}
 
 OUTPUT FORMAT:
+HANYA berikan kode (HTML, React, Vue, Svelte) yang diminta dalam satu blok kode Markdown (misalnya, \`\`\`html...\`\`\`).
+JANGAN sertakan teks atau penjelasan apa pun di luar blok kode Markdown.
 Berikan full working code yang bisa langsung dipakai. Jangan pakai placeholder atau comment "add more here".`;
 
     const messages = [
@@ -386,6 +389,23 @@ Berikan full working code yang bisa langsung dipakai. Jangan pakai placeholder a
       temperature: 0.8, // Higher creativity untuk design
       max_tokens: 4096
     });
+
+    let generatedCode = aiResponse.response;
+
+    // PENTING: PARSING UNTUK MENGHILANGKAN REASONING
+    // Cari dan ekstrak konten di dalam blok kode Markdown (```[lang]\n...\n```)
+    const codeRegex = /```[\w\s]*\n([\s\S]*?)\n```/;
+    const match = generatedCode.match(codeRegex);
+
+    if (match && match[1]) {
+        // Jika cocok, ambil konten di dalam blok kode (group 1)
+        generatedCode = match[1].trim();
+    } else {
+        // Fallback: Jika tidak ada blok kode Markdown, ambil semua teks.
+        // Tapi ini harusnya jarang terjadi jika prompt diikuti.
+        generatedCode = generatedCode.trim();
+    }
+    // AKHIR PARSING
 
     return Response.json({
       success: true,
