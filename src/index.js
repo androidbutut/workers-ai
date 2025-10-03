@@ -298,6 +298,7 @@ async function handleScrape(request, env, corsHeaders) {
 }
 
 // Handler untuk redesign website
+// Handler untuk redesign website
 async function handleRedesign(request, env, corsHeaders) {
   const { 
     url, 
@@ -372,9 +373,18 @@ KONTEN WEBSITE ORIGINAL:
 ${websiteContent.slice(0, 4000)}
 
 OUTPUT FORMAT:
-HANYA berikan kode (HTML, React, Vue, Svelte) yang diminta dalam satu blok kode Markdown (misalnya, \`\`\`html...\`\`\`).
-JANGAN sertakan teks atau penjelasan apa pun di luar blok kode Markdown.
-Berikan full working code yang bisa langsung dipakai. Jangan pakai placeholder atau comment "add more here".`;
+HANYA berikan respons dalam format JSON valid. JANGAN ada teks atau penjelasan di luar objek JSON ini.
+JSON harus memiliki dua kunci: "code" dan "explanation".
+
+- Kunci "code": Berisi full working code (HTML/Component) yang diminta. Untuk kejelasan, bungkus konten ini dalam blok kode Markdown (misalnya, \`\`\`html...\`\`\`) di dalam string JSON.
+- Kunci "explanation": Berisi penjelasan singkat (maks. 5 kalimat) tentang pilihan desain dan framework yang digunakan.
+
+Contoh Output:
+{
+  "code": "\`\`\`html\\n\\n\`\`\`",
+  "explanation": "Desain ini menggunakan layout grid modern, glassmorphism, dan palet warna netral untuk kesan elegan."
+}
+`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -390,30 +400,49 @@ Berikan full working code yang bisa langsung dipakai. Jangan pakai placeholder a
       max_tokens: 4096
     });
 
-    let generatedCode = aiResponse.response;
+    let rawOutput = aiResponse.response;
+    let parsedJson;
 
-    // PENTING: PARSING UNTUK MENGHILANGKAN REASONING
-    // Cari dan ekstrak konten di dalam blok kode Markdown (```[lang]\n...\n```)
+    try {
+        // Hapus penanda Markdown/kode di awal dan akhir jika model menambahkannya
+        rawOutput = rawOutput.replace(/^```json\s*|```\s*$/g, '').trim(); 
+        
+        // Parse output sebagai JSON
+        parsedJson = JSON.parse(rawOutput);
+
+    } catch (e) {
+        // Fallback jika parsing JSON gagal
+        // Kirim rawOutput ke frontend agar user bisa lihat apa yang salah
+        return Response.json(
+            { error: 'Gagal memparsing respons AI sebagai JSON. Pastikan prompt AI diikuti dengan benar.', raw_output: rawOutput.slice(0, 1000) },
+            { status: 500, headers: corsHeaders }
+        );
+    }
+
+    let generatedCode = parsedJson.code || '';
+    let explanation = parsedJson.explanation || 'Tidak ada penjelasan desain yang disediakan oleh AI.';
+
+    // Bersihkan kode dari blok Markdown (```html\n...\n```) yang ada di dalam string JSON
     const codeRegex = /```[\w\s]*\n([\s\S]*?)\n```/;
     const match = generatedCode.match(codeRegex);
 
     if (match && match[1]) {
-        // Jika cocok, ambil konten di dalam blok kode (group 1)
+        // Jika cocok, ambil konten di dalam blok kode (pure code)
         generatedCode = match[1].trim();
     } else {
-        // Fallback: Jika tidak ada blok kode Markdown, ambil semua teks.
-        // Tapi ini harusnya jarang terjadi jika prompt diikuti.
+        // Fallback: Jika tidak ada blok Markdown di dalam string kode, ambil seluruhnya
         generatedCode = generatedCode.trim();
     }
-    // AKHIR PARSING
 
+    // Mengembalikan response dengan Code dan Explanation yang sudah dipisahkan
     return Response.json({
       success: true,
       original_url: url,
       style,
       framework,
-      code: aiResponse.response,
-      preview_note: 'Copy code ke file .html atau component file dan jalankan',
+      code: generatedCode, // PURE CODE untuk preview
+      explanation: explanation, // Penjelasan terpisah untuk UI
+      preview_note: 'Gunakan field "code" untuk preview HTML dan "explanation" untuk catatan desain.',
       scraped_content_length: websiteContent.length
     }, { headers: corsHeaders });
 
